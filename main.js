@@ -26,18 +26,20 @@ function main(){
         antiCameraMatrix: mat4.create(),
         projectionMatrix: mat4.create(),
     }
-    mat4.perspective(gl.globleInfo.projectionMatrix, 60 * Math.PI / 180, gl.canvas.clientWidth / gl.canvas.clientHeight, 0.01, 2000);
-    mat4.inverse(gl.globleInfo.antiCameraMatrix, gl.globleInfo.cameraMatrix);
     //相机FOV 60
+    mat4.perspective(gl.globleInfo.projectionMatrix, 60 * Math.PI / 180, gl.canvas.clientWidth / gl.canvas.clientHeight, 0.01, 2000);
+    //相机后退
+    mat4.inverse(gl.globleInfo.antiCameraMatrix, gl.globleInfo.cameraMatrix);
 
     gl.clear(gl.COLOR_BUFFER_BIT);
     obj1 = new GLObject(gl);
     mat4.translate(obj1.viewMatrix, obj1.viewMatrix, [0,0,-15]);
-    mat4.rotate(obj1.viewMatrix, obj1.viewMatrix, 0.7, [0,0,1]);
     obj1.setSquare();
     obj1.texture = createTexture(gl);
 
     obj1.drawOn();
+
+    
 }
 class GLObject{
     constructor(gl){
@@ -127,7 +129,7 @@ class GLObject{
         this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.normalMatrix, false, normalMatrix);
 
         //bind buffers
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+        //this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
         
         this.gl.activeTexture(this.gl.TEXTURE0);
@@ -137,16 +139,11 @@ class GLObject{
         this.gl.uniform1i(this.programInfo.uniformLocations.uSampler, 0);
         {
             var type = this.gl.UNSIGNED_SHORT;
-            //this.gl.drawElements(this.gl.TRIANGLES, this.vertexCount, type, 0);
-            this.gl.drawElements(this.gl.TRIANGLES, 3, type, 0);
-            this.gl.drawArrays(this.gl.TRIANGLES, 0, 24);
-            //this.gl.drawArrays(this.gl.TRIANGLES, 3, 3);
+            this.gl.drawElements(this.gl.TRIANGLES, this.vertexCount, type, 0);
         }
     }
     setSquare(){
         {
-            this.gl.deleteBuffer(this.positionBuffer);
-            this.positionBuffer = this.gl.createBuffer();
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
             const positions = [
                 // Front face
@@ -190,8 +187,6 @@ class GLObject{
                 this.gl.STATIC_DRAW);
         }
         {
-            this.gl.deleteBuffer(this.textureCoordBuffer);
-            this.textureCoordBuffer = this.gl.createBuffer();
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.textureCoordBuffer);
             const textureCoordinates = [
                 // Front
@@ -230,8 +225,6 @@ class GLObject{
                 this.gl.STATIC_DRAW);
         }
         {
-            this.gl.deleteBuffer(this.normalBuffer);
-            this.normalBuffer = this.gl.createBuffer();
             this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.normalBuffer);
             const vertexNormals = [
                 // Front
@@ -275,8 +268,6 @@ class GLObject{
                 this.gl.STATIC_DRAW);
         }
         {
-            this.gl.deleteBuffer(this.indexBuffer);
-            this.indexBuffer = this.gl.createBuffer();
             this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer);
             const indices = [
                 0,  1,  2,      0,  2,  3,    // front
@@ -286,7 +277,7 @@ class GLObject{
                 16, 17, 18,     16, 18, 19,   // right
                 20, 21, 22,     20, 22, 23,   // left
             ];
-            this.gl.bufferData(this.gl.ARRAY_BUFFER,
+            this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER,
                 new Uint16Array(indices),
                 this.gl.STATIC_DRAW);
         }
@@ -295,28 +286,42 @@ class GLObject{
 }
 GLObject.defaultvsSource = `
     attribute vec4 aVertexPosition;
+    attribute vec3 aVertexNormal;
     attribute vec2 aTextureCoord;
 
+    uniform mat4 uNormalMatrix;
     uniform mat4 uModelViewMatrix;
     uniform mat4 uProjectionMatrix;
 
     varying highp vec2 vTextureCoord;
+    varying highp vec3 vLighting;
 
     void main(void) {
         gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
         vTextureCoord = aTextureCoord;
-    }
+
+        // Apply lighting effect
+
+        highp vec3 ambientLight = vec3(0.3, 0, 0);
+        highp vec3 directionalLightColor = vec3(0.5, 0.9, 0.9);
+        highp vec3 directionalVector = normalize(vec3(0.85, 0.8, 0.75));
+
+        highp vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
+
+        highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
+        vLighting = ambientLight + (directionalLightColor * directional);
+    }   
 `;
 GLObject.defaultfsSource = `
     varying highp vec2 vTextureCoord;
+    varying highp vec3 vLighting;
 
     uniform sampler2D uSampler;
 
     void main(void) {
         highp vec4 texelColor = texture2D(uSampler, vTextureCoord);
 
-        gl_FragColor = vec4(texelColor.rgb, texelColor.a);
-        //gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0);
+        gl_FragColor = vec4(texelColor.rgb * vLighting, texelColor.a);
     }
 `;
 function createShaderProgram(gl, vsSource, fsSource) {
