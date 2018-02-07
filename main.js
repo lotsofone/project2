@@ -29,15 +29,33 @@ function main(){
     //相机FOV 60
     mat4.perspective(gl.globleInfo.projectionMatrix, 60 * Math.PI / 180, gl.canvas.clientWidth / gl.canvas.clientHeight, 0.01, 2000);
     //相机后退
+    mat4.translate(gl.globleInfo.antiCameraMatrix, gl.globleInfo.antiCameraMatrix, [0, 0, 15]);
     mat4.inverse(gl.globleInfo.antiCameraMatrix, gl.globleInfo.cameraMatrix);
 
-    gl.clear(gl.COLOR_BUFFER_BIT);
     obj1 = new GLObject(gl);
-    mat4.translate(obj1.viewMatrix, obj1.viewMatrix, [0,0,-15]);
     obj1.setSquare();
+
+    var v=[0, 1, 0]; var x=[6,0,0];
+    var a=function(v, x) {
+        var acc = vec3.create();
+        vec3.normalize(acc, acc);
+        var c = -1;
+        vec3.smul(acc, x, c)
+        vec3.sdiv(acc,acc,vec3.magnitude(x));
+        return acc;
+    }
+
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    mat4.translate(obj1.viewMatrix, obj1.viewMatrix, [0,0,-15]);
     obj1.texture = createTexture(gl);
 
-    obj1.drawOn();
+    var render = function(){
+        var v1,a1,v2,a2;
+        v1 = 
+        obj1.drawOn();
+    }
+
+
 
     
 }
@@ -61,6 +79,7 @@ class GLObject{
             },
             uniformLocations: {
                 projectionMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uProjectionMatrix'),
+                antiCameraMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uAntiCameraMatrix'),
                 modelViewMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uModelViewMatrix'),
                 normalMatrix: this.gl.getUniformLocation(this.shaderProgram, 'uNormalMatrix'),
                 uSampler: this.gl.getUniformLocation(this.shaderProgram, 'uSampler'),
@@ -122,6 +141,7 @@ class GLObject{
         this.gl.useProgram(this.shaderProgram);
         //send uniforms
         this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.projectionMatrix, false, this.gl.globleInfo.projectionMatrix);
+        this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.antiCameraMatrix, false, this.gl.globleInfo.antiCameraMatrix);
         this.gl.uniformMatrix4fv(this.programInfo.uniformLocations.modelViewMatrix, false, this.viewMatrix);
         var normalMatrix = mat4.create();
         mat4.inverse(normalMatrix, normalMatrix);
@@ -291,13 +311,14 @@ GLObject.defaultvsSource = `
 
     uniform mat4 uNormalMatrix;
     uniform mat4 uModelViewMatrix;
+    uniform mat4 uAntiCameraMatrix;
     uniform mat4 uProjectionMatrix;
 
     varying highp vec2 vTextureCoord;
     varying highp vec3 vLighting;
 
     void main(void) {
-        gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
+        gl_Position = uProjectionMatrix * uAntiCameraMatrix * uModelViewMatrix * aVertexPosition;
         vTextureCoord = aTextureCoord;
 
         // Apply lighting effect
